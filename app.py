@@ -1,64 +1,96 @@
 import streamlit as st
+import requests
 import datetime
-import google.generativeai as genai
 
-# --- CONFIGURATION ---
-# Get your free key from https://aistudio.google.com/
-API_KEY = "YOUR_GEMINI_API_KEY_HERE"
-genai.configure(api_key=API_KEY)
-
-st.set_page_config(page_title="Student Dash", page_icon="🎓")
-
-# Initialize custom tools memory
-if 'custom_tools' not in st.session_state:
-    st.session_state.custom_tools = []
-
-st.title("🎒 My School Dashboard")
-
-# Define Tabs
-standard_tabs = ["🌤️ Weather", "🤖 AI Builder"]
-dynamic_tabs = standard_tabs + [t['name'] for t in st.session_state.custom_tools]
-all_tabs = st.tabs(dynamic_tabs)
-
-# --- TAB 1: WEATHER (Existing) ---
-with all_tabs[0]:
-    st.header("Recess & Lunch Status")
-    st.info("Check if it's an outdoor day!")
-    # (Existing weather logic goes here)
-
-# --- TAB 2: AI BUILDER (The New AI) ---
-with all_tabs[1]:
-    st.header("🤖 AI Tool Builder")
-    st.write("Describe a new tool you want (e.g., 'a simple diary' or 'a coin flipper').")
+# --- SPACE PIXEL CSS ---
+st.markdown("""
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
     
-    user_prompt = st.text_input("What should I build?")
+    html, body, [data-testid="stAppViewContainer"] {
+        background-color: #0b0e14;
+        background-image: radial-gradient(#ffffff 1px, transparent 1px);
+        background-size: 50px 50px;
+        color: #00ff00 !important;
+        font-family: 'Press Start 2P', cursive;
+    }
     
-    if st.button("Generate Tool"):
-        if not user_prompt:
-            st.warning("Tell me what to build first!")
-        else:
-            with st.spinner("Thinking..."):
-                # SYSTEM INSTRUCTIONS: The "Filter"
-                system_prompt = (
-                    "You are a Python UI builder. Your only job is to write a brief 'st.write' "
-                    "or 'st.text_input' style summary for a Streamlit app. "
-                    "CRITICAL RULE: If the user asks a school-related question (homework, math, "
-                    "essays, science facts), say: 'I cannot help with schoolwork. I only build tools.'"
-                )
-                
-                model = genai.GenerativeModel('gemini-1.5-flash')
-                response = model.generate_content(f"{system_prompt}\n\nUser request: {user_prompt}")
-                
-                # Save the new tool
-                st.session_state.custom_tools.append({
-                    "name": user_prompt[:15], # Shorten name for the tab
-                    "content": response.text
-                })
-                st.success("Tool created! Check the new tab at the top.")
-                st.rerun()
+    h1, h2, h3, p, span, label {
+        color: #00ff00 !important;
+        text-shadow: 2px 2px #ff00ff;
+    }
 
-# --- DYNAMIC TABS (Where the AI tools live) ---
-for i, tool in enumerate(st.session_state.custom_tools):
-    with all_tabs[len(standard_tabs) + i]:
-        st.header(tool['name'])
-        st.markdown(tool['content'])
+    .stButton>button {
+        background-color: #ff00ff;
+        color: white;
+        border: 4px solid #ffffff;
+        font-family: 'Press Start 2P', cursive;
+        image-rendering: pixelated;
+    }
+    
+    /* Scratch Block Style for Builder */
+    .scratch-block {
+        background: #4c97ff;
+        border: 2px solid #3373cc;
+        border-radius: 8px;
+        padding: 10px;
+        margin: 5px;
+        color: white !important;
+        text-shadow: none !important;
+        font-size: 10px;
+        display: inline-block;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+st.title("🚀 SPACE DASH v2.0")
+
+# --- OPEN-METEO WEATHER LOGIC ---
+def get_meteo_weather(lat, lon):
+    url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current_weather=True"
+    try:
+        response = requests.get(url).json()
+        current = response['current_weather']
+        return current['temperature'], current['windspeed']
+    except:
+        return 0, 0
+
+# --- TABS ---
+tab_weather, tab_scratch = st.tabs(["🌤️ METEO SCAN", "🧩 SCRATCH BUILDER"])
+
+with tab_weather:
+    st.header("PLANET EARTH STATUS")
+    # Change these to your city's Lat/Lon
+    lat = st.number_input("LATITUDE", value=40.71, step=0.01)
+    lon = st.number_input("LONGITUDE", value=-74.00, step=0.01)
+    
+    temp, wind = get_meteo_weather(lat, lon)
+    
+    col1, col2 = st.columns(2)
+    col1.metric("TEMP", f"{temp}°C")
+    col2.metric("WIND", f"{wind} km/h")
+    
+    if temp > 10 and wind < 20:
+        st.success("STATION STATUS: GO OUTSIDE 👨‍🚀")
+    else:
+        st.error("STATION STATUS: STAY INSIDE 🛰️")
+
+with tab_scratch:
+    st.header("SCRATCH 3.0 BUILDER")
+    st.write("Drag (type) blocks to build a custom tool message!")
+    
+    # Simulate Scratch blocks with a dropdown
+    block_type = st.selectbox("CHOOSE BLOCK", ["When Green Flag Clicked", "Say [Text]", "Wait [1] Secs"])
+    input_text = st.text_input("BLOCK INPUT", "Hello Space!")
+    
+    if st.button("SNAP BLOCKS"):
+        if 'blocks' not in st.session_state: st.session_state.blocks = []
+        st.session_state.blocks.append(f"{block_type}: {input_text}")
+    
+    # Display the "Code Stack"
+    for b in st.session_state.blocks:
+        st.markdown(f'<div class="scratch-block">{b}</div>', unsafe_allow_html=True)
+    
+    if st.button("CLEAR CODE"):
+        st.session_state.blocks = []
+        st.rerun()
